@@ -142,7 +142,7 @@ const App = {
     const soonEnd = addDays(t, 3);
     const now = [], soon = [];
     for (const list of Object.values(this.state.lists)) {
-      if (list.archived) continue;
+      if (list.archived || list.shelved) continue;
       if (list.type === 'recurring') {
         for (const item of list.items || []) {
           const due = this.recurDueDate(item);
@@ -259,6 +259,14 @@ const App = {
     this.state.lists[id] = list;
     this.markDirty(id);
     this.navigate('list', id);
+  },
+
+  shelveList(listId, shelved) {
+    const list = this.state.lists[listId];
+    if (!list) return;
+    list.shelved = shelved;
+    this.markDirty(listId);
+    toast(shelved ? '💤 Shelved — resting, not forgotten.' : '☀️ Awake. Its tasks count now.');
   },
 
   archiveList(listId) {
@@ -390,7 +398,7 @@ const App = {
     const { now, soon } = this.collectToday();
     const t = todayStr();
     const trips = Object.values(this.state.lists)
-      .filter(l => l.type === 'trip' && !l.archived && (l.return || l.departure) >= t)
+      .filter(l => l.type === 'trip' && !l.archived && !l.shelved && (l.return || l.departure) >= t)
       .sort((a, b) => a.departure < b.departure ? -1 : 1);
 
     const tripCards = trips.map(l => {
@@ -427,9 +435,12 @@ const App = {
   },
 
   renderLists() {
-    const lists = Object.values(this.state.lists).filter(l => !l.archived);
+    const all = Object.values(this.state.lists).filter(l => !l.archived);
+    const lists = all.filter(l => !l.shelved);
+    const shelf = all.filter(l => l.shelved);
     const order = { trip: 0, recurring: 1, project: 2, simple: 3 };
     lists.sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.title.localeCompare(b.title));
+    shelf.sort((a, b) => a.title.localeCompare(b.title));
     const cards = lists.map(l => {
       let sub = '', badge = '';
       if (l.type === 'trip') {
@@ -458,10 +469,20 @@ const App = {
         ${badge}
       </div>`;
     }).join('');
+    const shelfCards = shelf.map(l => {
+      const total = (l.items || []).length;
+      const done = (l.items || []).filter(i => i.done).length;
+      return `<div class="list-card shelved" data-action="open-list" data-list="${l.id}">
+        <div class="list-emoji">${esc(l.emoji)}</div>
+        <div class="list-info"><div class="list-title">${esc(l.title)}</div><div class="list-sub">${done}/${total} done · resting</div></div>
+        <button class="mini-btn accent" data-action="activate-list" data-list="${l.id}">Wake</button>
+      </div>`;
+    }).join('');
     return `
       <div class="list-head"><h1>Your lists</h1></div>
       ${cards || '<div class="empty"><span class="big">🗂️</span>No lists yet.</div>'}
-      <button class="bigbtn secondary" data-action="new-list">＋ New list</button>`;
+      <button class="bigbtn secondary" data-action="new-list">＋ New list</button>
+      ${shelf.length ? `<div class="section-label">On the shelf — resting, not forgotten</div>${shelfCards}` : ''}`;
   },
 
   renderListDetail() {
@@ -470,7 +491,8 @@ const App = {
     const head = `
       <button class="back-btn" data-action="nav-lists">‹ Lists</button>
       <div class="list-head"><h1><span>${esc(list.emoji)}</span>${esc(list.title)}
-        <button class="mini-btn" data-action="archive-list" data-list="${list.id}" title="Archive list" style="margin-left:auto">Archive</button>
+        <button class="mini-btn ${list.shelved ? 'accent' : ''}" data-action="${list.shelved ? 'activate-list' : 'shelve-list'}" data-list="${list.id}" style="margin-left:auto">${list.shelved ? 'Wake' : 'Shelve'}</button>
+        <button class="mini-btn" data-action="archive-list" data-list="${list.id}" title="Archive list">Archive</button>
       </h1></div>`;
     let body = '';
     if (list.type === 'trip') body = this.renderTripBody(list);
@@ -629,6 +651,8 @@ document.addEventListener('click', (evt) => {
       break;
     }
     case 'new-list': openNewList(); break;
+    case 'shelve-list': App.shelveList(listId, true); break;
+    case 'activate-list': App.shelveList(listId, false); break;
     case 'archive-list': App.archiveList(listId); break;
     case 'pick-one': App.pickOne(); break;
   }

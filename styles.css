@@ -299,6 +299,7 @@ button { font: inherit; color: inherit; }
   cursor: pointer;
 }
 .list-card:active { background: var(--card-2); }
+.list-card.shelved { opacity: 0.7; border-style: dashed; }
 .list-emoji { font-size: 24px; flex: none; }
 .list-info { flex: 1; min-width: 0; }
 .list-title { font-weight: 700; }
