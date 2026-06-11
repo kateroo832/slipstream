@@ -151,7 +151,7 @@ const App = {
           else if (due <= soonEnd) soon.push(entry);
         }
       } else if (list.type === 'trip') {
-        if (list.departure < t) continue; // trip already happened
+        if ((list.return || list.departure) < t) continue; // trip is over
         for (const item of list.items || []) {
           if (item.done) continue;
           const due = this.tripItemDue(list, item);
@@ -233,8 +233,8 @@ const App = {
       if (every !== null && +every > 0) item.every = Math.round(+every);
     }
     if (list.type === 'trip') {
-      const db = prompt('How many days before departure?', item.daysBefore ?? 7);
-      if (db !== null && +db >= 0) item.daysBefore = Math.round(+db);
+      const db = prompt('How many days before departure? (negative = during the trip)', item.daysBefore ?? 7);
+      if (db !== null && db.trim() !== '' && !isNaN(+db)) item.daysBefore = Math.round(+db);
     }
     item.updatedAt = nowISO();
     this.ui.menuFor = null;
@@ -364,9 +364,10 @@ const App = {
     const key = list.id + '/' + item.id;
     const spot = this.ui.spotlight === key ? 'spotlight' : '';
     const snoozing = this.ui.snoozeFor === key;
+    const tripWhen = item.daysBefore === 0 ? 'departure day' : item.daysBefore < 0 ? 'during trip' : item.daysBefore + 'd before';
     const sub = kind === 'recurring'
       ? `${esc(list.emoji)} ${esc(list.title)} · every ${item.every}d · ${this.dueLabel(due)}`
-      : `${esc(list.emoji)} ${esc(list.title)} · ${item.daysBefore === 0 ? 'departure day' : item.daysBefore + 'd before'} · ${this.dueLabel(due)}`;
+      : `${esc(list.emoji)} ${esc(list.title)} · ${tripWhen} · ${this.dueLabel(due)}`;
     const actions = snoozing
       ? `<div class="row-actions">
            <button class="mini-btn accent" data-action="snooze" data-list="${list.id}" data-item="${item.id}" data-days="1">+1d</button>
@@ -389,7 +390,7 @@ const App = {
     const { now, soon } = this.collectToday();
     const t = todayStr();
     const trips = Object.values(this.state.lists)
-      .filter(l => l.type === 'trip' && !l.archived && l.departure >= t)
+      .filter(l => l.type === 'trip' && !l.archived && (l.return || l.departure) >= t)
       .sort((a, b) => a.departure < b.departure ? -1 : 1);
 
     const tripCards = trips.map(l => {
@@ -397,10 +398,13 @@ const App = {
       const undone = (l.items || []).filter(i => !i.done);
       const next = undone.sort((a, b) => (b.daysBefore || 0) - (a.daysBefore || 0))[0];
       const sub = next ? `next: ${esc(next.text)}` : 'all set ✨';
+      const count = days >= 0
+        ? `<b>${days}</b><span>day${days === 1 ? '' : 's'}</span>`
+        : `<b>✈️</b><span>day ${1 - days}</span>`;
       return `<div class="trip-card" data-action="open-list" data-list="${l.id}">
         <div class="trip-emoji">${esc(l.emoji)}</div>
         <div class="trip-info"><div class="trip-title">${esc(l.title)}</div><div class="trip-sub">${sub}</div></div>
-        <div class="trip-count"><b>${days}</b><span>day${days === 1 ? '' : 's'}</span></div>
+        <div class="trip-count">${count}</div>
       </div>`;
     }).join('');
 
@@ -431,8 +435,11 @@ const App = {
       if (l.type === 'trip') {
         const days = daysUntil(l.departure);
         const done = (l.items || []).filter(i => i.done).length;
-        sub = days >= 0 ? `${days} days out · ${done}/${(l.items || []).length} prepped` : `departed ${fmtShort(l.departure)}`;
-        badge = days >= 0 ? `<span class="list-badge due">${days}d</span>` : '';
+        const onTrip = days < 0 && l.return && l.return >= todayStr();
+        sub = days >= 0 ? `${days} days out · ${done}/${(l.items || []).length} prepped`
+          : onTrip ? `on the trip · home ${fmtShort(l.return)}`
+          : `departed ${fmtShort(l.departure)}`;
+        badge = days >= 0 ? `<span class="list-badge due">${days}d</span>` : onTrip ? `<span class="list-badge due">✈️</span>` : '';
       } else if (l.type === 'recurring') {
         const due = (l.items || []).filter(i => this.recurDueDate(i) <= todayStr()).length;
         sub = `${(l.items || []).length} rhythms`;
@@ -490,16 +497,22 @@ const App = {
 
   renderTripBody(list) {
     const days = daysUntil(list.departure);
+    const onTrip = days < 0 && list.return && list.return >= todayStr();
     const hero = days >= 0
       ? `<div class="countdown-hero"><b>${days}</b><span>day${days === 1 ? '' : 's'} until ${fmtShort(list.departure)}</span></div>`
-      : `<div class="countdown-hero"><b>✈️</b><span>departed ${fmtShort(list.departure)}</span></div>`;
-    const items = [...(list.items || [])].sort((a, b) => (b.daysBefore || 0) - (a.daysBefore || 0) || (a.done === b.done ? 0 : a.done ? 1 : -1));
+      : onTrip
+        ? `<div class="countdown-hero"><b>Day ${1 - days}</b><span>on the trip · home ${fmtShort(list.return)}</span></div>`
+        : `<div class="countdown-hero"><b>✈️</b><span>departed ${fmtShort(list.departure)}</span></div>`;
+    const items = [...(list.items || [])].sort((a, b) =>
+      (a.done ? 1 : 0) - (b.done ? 1 : 0) || (b.daysBefore || 0) - (a.daysBefore || 0));
     const rows = items.map(item => {
       const due = this.tripItemDue(list, item);
-      const when = item.daysBefore === 0 ? 'departure day' : `${item.daysBefore}d before · ${fmtShort(due)}`;
+      const when = item.daysBefore === 0 ? 'departure day'
+        : item.daysBefore < 0 ? `during trip · ${fmtShort(due)}`
+        : `${item.daysBefore}d before · ${fmtShort(due)}`;
       return `<div class="task-row ${item.done ? 'done-row' : ''}" data-key="${list.id}/${item.id}">
         <button class="checkbtn ${item.done ? 'checked' : ''}" data-action="toggle-done" data-list="${list.id}" data-item="${item.id}">✓</button>
-        <div class="task-main"><div class="task-text">${esc(item.text)}</div><div class="task-sub">${when}</div></div>
+        <div class="task-main"><div class="task-text">${esc(item.text)}</div><div class="task-sub">${when}</div>${item.notes ? `<div class="task-sub">${esc(item.notes)}</div>` : ''}</div>
         ${this.itemMenuOrActions(list, item)}
       </div>`;
     }).join('');
