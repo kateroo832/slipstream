@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#13111A">
+<title>Slipstream</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand" data-action="go-home">
+      <svg class="brand-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path d="M4 13 L9 18 L20 6" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Slipstream</span>
+    </div>
+    <div class="topbar-right">
+      <button class="sync-pill" id="syncPill" data-action="sync-now" title="Sync now">
+        <span class="sync-dot" id="syncDot"></span><span id="syncLabel">local</span>
+      </button>
+      <button class="icon-btn" data-action="open-settings" aria-label="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <main id="view" class="view"></main>
+
+  <nav class="bottomnav">
+    <button class="nav-btn" id="navToday" data-action="nav-today"><span class="nav-emoji">🌤️</span>Today</button>
+    <button class="nav-btn" id="navLists" data-action="nav-lists"><span class="nav-emoji">🗂️</span>Lists</button>
+  </nav>
+
+  <div id="toast" class="toast" hidden>
+    <span id="toastMsg"></span>
+    <button id="toastBtn" class="toast-btn" hidden></button>
+  </div>
+
+  <dialog id="settingsDialog">
+    <form method="dialog" class="dlg">
+      <h2>Settings</h2>
+      <label>Your name <input type="text" id="setName" placeholder="What should I call you?"></label>
+      <h3>GitHub sync</h3>
+      <p class="hint">Point Slipstream at your private data repo. See SETUP.md for the walkthrough.</p>
+      <label>GitHub username <input type="text" id="setOwner" autocapitalize="off" autocomplete="off" placeholder="e.g. kaight-makes"></label>
+      <label>Data repo name <input type="text" id="setRepo" autocapitalize="off" autocomplete="off" placeholder="slipstream-data"></label>
+      <label>Branch <input type="text" id="setBranch" autocapitalize="off" autocomplete="off" placeholder="main"></label>
+      <label>Access token <input type="password" id="setToken" autocomplete="off" placeholder="github_pat_…"></label>
+      <p class="hint">The token is stored only on this device.</p>
+      <div class="dlg-row">
+        <button value="cancel" class="btn ghost">Cancel</button>
+        <button value="save" class="btn primary" id="settingsSave">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="newListDialog">
+    <form method="dialog" class="dlg">
+      <h2>New list</h2>
+      <label>Name <input type="text" id="nlTitle" placeholder="e.g. Garage cleanout"></label>
+      <label>Emoji <input type="text" id="nlEmoji" value="✅" maxlength="4"></label>
+      <label>Type
+        <select id="nlType">
+          <option value="simple">Simple checklist</option>
+          <option value="project">Project (sections &amp; phases)</option>
+          <option value="recurring">Recurring (chores that reschedule)</option>
+          <option value="trip">Trip countdown</option>
+        </select>
+      </label>
+      <label id="nlDepartureWrap" hidden>Departure date <input type="date" id="nlDeparture"></label>
+      <div class="dlg-row">
+        <button value="cancel" class="btn ghost">Cancel</button>
+        <button value="create" class="btn primary" id="nlCreate">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <canvas id="confettiCanvas"></canvas>
+
+  <script src="confetti.js"></script>
+  <script src="sync.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
