@@ -159,6 +159,16 @@ const App = {
           if (due <= t) now.push(entry);
           else if (due <= soonEnd) soon.push(entry);
         }
+      } else {
+        // project/simple items with an explicit due date surface in Today
+        for (const item of list.items || []) {
+          if (item.done || !item.due) continue;
+          let due = item.due;
+          if (item.snoozedUntil && item.snoozedUntil > due) due = item.snoozedUntil;
+          const entry = { list, item, due, kind: 'dated' };
+          if (due <= t) now.push(entry);
+          else if (due <= soonEnd) soon.push(entry);
+        }
       }
     }
     const byDue = (a, b) => a.due < b.due ? -1 : a.due > b.due ? 1 : 0;
@@ -373,9 +383,8 @@ const App = {
     const spot = this.ui.spotlight === key ? 'spotlight' : '';
     const snoozing = this.ui.snoozeFor === key;
     const tripWhen = item.daysBefore === 0 ? 'departure day' : item.daysBefore < 0 ? 'during trip' : item.daysBefore + 'd before';
-    const sub = kind === 'recurring'
-      ? `${esc(list.emoji)} ${esc(list.title)} · every ${item.every}d · ${this.dueLabel(due)}`
-      : `${esc(list.emoji)} ${esc(list.title)} · ${tripWhen} · ${this.dueLabel(due)}`;
+    const detail = kind === 'recurring' ? `every ${item.every}d` : kind === 'dated' ? `due ${fmtShort(item.due)}` : tripWhen;
+    const sub = `${esc(list.emoji)} ${esc(list.title)} · ${detail} · ${this.dueLabel(due)}`;
     const actions = snoozing
       ? `<div class="row-actions">
            <button class="mini-btn accent" data-action="snooze" data-list="${list.id}" data-item="${item.id}" data-days="1">+1d</button>
@@ -595,7 +604,7 @@ const App = {
       const rows = sec.items.map(item => `
         <div class="task-row ${item.done ? 'done-row' : ''} ${firstUndone && item.id === firstUndone.id ? 'spotlight' : ''}" data-key="${list.id}/${item.id}">
           <button class="checkbtn ${item.done ? 'checked' : ''}" data-action="toggle-done" data-list="${list.id}" data-item="${item.id}">✓</button>
-          <div class="task-main"><div class="task-text">${esc(item.text)}</div>${item.notes ? `<div class="task-sub">${esc(item.notes)}</div>` : ''}</div>
+          <div class="task-main"><div class="task-text">${esc(item.text)}</div>${item.due && !item.done ? `<div class="task-sub">${this.dueLabel(item.due)}</div>` : ''}${item.notes ? `<div class="task-sub">${esc(item.notes)}</div>` : ''}</div>
           ${this.itemMenuOrActions(list, item)}
         </div>`).join('');
       return `<div class="group-head"><span>${esc(sec.name)}</span><span class="count">${secDone}/${sec.items.length}</span></div>
