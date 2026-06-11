@@ -125,10 +125,25 @@ const App = {
   },
 
   /* ---------------- due-date logic ---------------- */
+  /* weekday (0=Sun..6=Sat) anchors a recurring task to a fixed day of the
+   * week: a late check-off re-anchors to the next occurrence instead of
+   * drifting — right for meds, wrong for chores, so it's opt-in. */
   recurDueDate(item) {
-    let due = item.lastDone ? addDays(item.lastDone, item.every || 7) : todayStr();
+    let due;
+    if (item.weekday != null) {
+      const base = item.lastDone ? addDays(item.lastDone, 1) : todayStr();
+      const d = parseDate(base);
+      d.setDate(d.getDate() + ((item.weekday - d.getDay()) + 7) % 7);
+      due = ymd(d);
+    } else {
+      due = item.lastDone ? addDays(item.lastDone, item.every || 7) : todayStr();
+    }
     if (item.snoozedUntil && item.snoozedUntil > due) due = item.snoozedUntil;
     return due;
+  },
+  cadenceLabel(item) {
+    if (item.weekday != null) return ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'][item.weekday];
+    return (item.every === 1) ? 'daily' : `every ${item.every}d`;
   },
   tripItemDue(list, item) {
     let due = addDays(list.departure, -(item.daysBefore || 0));
@@ -383,7 +398,7 @@ const App = {
     const spot = this.ui.spotlight === key ? 'spotlight' : '';
     const snoozing = this.ui.snoozeFor === key;
     const tripWhen = item.daysBefore === 0 ? 'departure day' : item.daysBefore < 0 ? 'during trip' : item.daysBefore + 'd before';
-    const detail = kind === 'recurring' ? `every ${item.every}d` : kind === 'dated' ? `due ${fmtShort(item.due)}` : tripWhen;
+    const detail = kind === 'recurring' ? this.cadenceLabel(item) : kind === 'dated' ? `due ${fmtShort(item.due)}` : tripWhen;
     const sub = `${esc(list.emoji)} ${esc(list.title)} · ${detail} · ${this.dueLabel(due)}`;
     const actions = snoozing
       ? `<div class="row-actions">
@@ -574,7 +589,7 @@ const App = {
       return `<div class="task-row" data-key="${key}">
         <button class="checkbtn" data-action="check-recurring" data-list="${list.id}" data-item="${item.id}">✓</button>
         <div class="task-main"><div class="task-text">${esc(item.text)}</div>
-          <div class="task-sub">every ${item.every}d · ${last} · ${this.dueLabel(due)}</div></div>
+          <div class="task-sub">${this.cadenceLabel(item)} · ${last} · ${this.dueLabel(due)}</div>${item.notes ? `<div class="task-sub">${esc(item.notes)}</div>` : ''}</div>
         ${actions}
       </div>`;
     };
