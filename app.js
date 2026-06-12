@@ -33,9 +33,14 @@ const App = {
     dirty: new Set(),   // list ids changed locally since last push
     settings: { name: '', owner: '', repo: '', branch: 'main', token: '' },
     activity: [],       // ISO timestamps of check-offs (capped)
+    moves: [],          // {at, id} log of completed exercise snacks (device-local)
+    moveBan: [],        // exercise ids the user said never to offer again
     lastSync: null,
   },
-  ui: { view: 'today', listId: null, snoozeFor: null, menuFor: null, spotlight: null },
+  ui: {
+    view: 'today', listId: null, snoozeFor: null, menuFor: null, spotlight: null,
+    move: { budget: null, flare: false, currentId: null, spent: 0, justDid: false, recent: [] },
+  },
 
   load() {
     try {
@@ -303,6 +308,99 @@ const App = {
     this.navigate('lists');
   },
 
+  /* ---------------- Move tab (exercise snacks) ---------------- */
+  moveNext() {
+    const m = this.ui.move;
+    const ex = Moves.pick(m.budget, m.flare, this.state.moveBan, m.recent);
+    m.currentId = ex ? ex.id : null;
+    m.justDid = false;
+    if (ex) m.recent = [...m.recent, ex.id].slice(-6);
+    this.render();
+  },
+
+  didMove(evt) {
+    const m = this.ui.move;
+    const ex = Moves.byId(m.currentId);
+    if (!ex) return;
+    this.state.moves.push({ at: nowISO(), id: ex.id });
+    if (this.state.moves.length > 500) this.state.moves = this.state.moves.slice(-500);
+    this.logActivity(); // movement lights up the momentum dots too
+    this.persist();
+    this.celebrate(evt);
+    m.spent += ex.min;
+    m.currentId = null;
+    m.justDid = true;
+    this.render();
+  },
+
+  banMove() {
+    const m = this.ui.move;
+    if (!m.currentId) return;
+    this.state.moveBan.push(m.currentId);
+    this.persist();
+    toast('Gone. That one will never be offered again.');
+    this.moveNext();
+  },
+
+  endMoveSession() {
+    const m = this.ui.move;
+    const spent = m.spent;
+    this.ui.move = { budget: null, flare: m.flare, currentId: null, spent: 0, justDid: false, recent: m.recent };
+    toast(spent ? `💪 ~${spent} min moved. The stairs heard about it.` : '😌 Rest is training too.');
+    this.render();
+  },
+
+  movesThisWeek() {
+    const today = new Date();
+    const dow = (today.getDay() + 6) % 7;
+    const monday = new Date(today); monday.setDate(monday.getDate() - dow); monday.setHours(0, 0, 0, 0);
+    return this.state.moves.filter(mv => new Date(mv.at) >= monday).length;
+  },
+
+  renderMove() {
+    const m = this.ui.move;
+    const week = this.movesThisWeek();
+    const head = `<div class="greet"><h1>Move.</h1><p>Tiny workouts. Zero reps owed.</p></div>`;
+    const weekLine = `<div class="momentum"><div class="momentum-text" style="text-align:left">${week ? `<b>${week}</b> move${week === 1 ? '' : 's'} this week — the stairs are getting nervous` : 'Fresh slate. The first move counts double (emotionally).'}</div></div>`;
+
+    if (!m.budget) {
+      return head + weekLine + `
+        <div class="section-label">How much do you have right now?</div>
+        <button class="bigbtn energy" data-action="move-budget" data-min="2">⚡ 2 minutes <span>just a sip</span></button>
+        <button class="bigbtn energy" data-action="move-budget" data-min="5">🔋 5 minutes <span>a snack</span></button>
+        <button class="bigbtn energy" data-action="move-budget" data-min="10">🚀 10 minutes <span>a feast</span></button>
+        <button class="bigbtn secondary flare-btn ${m.flare ? 'on' : ''}" data-action="move-flare">🌧️ Flare day — gentle only${m.flare ? ' · ON' : ''}</button>
+        <p class="hint" style="text-align:center">General movement ideas, not medical advice. Scale everything;<br>sharp or flare-type pain means stop — that's wisdom, not weakness.</p>`;
+    }
+
+    if (m.justDid) {
+      return head + `
+        <div class="empty" style="border-style:solid"><span class="big">🎉</span><b>~${m.spent} min banked this round.</b><br>Still something in the tank?</div>
+        <button class="bigbtn" data-action="move-another">🔥 One more</button>
+        <button class="bigbtn secondary" data-action="move-done">😌 Done for now</button>`;
+    }
+
+    const ex = Moves.byId(m.currentId);
+    if (!ex) {
+      return head + `<div class="empty"><span class="big">🌫️</span>Nothing fits those filters.<br>Try a bigger window, or flare mode off.</div>
+        <button class="bigbtn secondary" data-action="move-reset">← Change energy</button>`;
+    }
+    return head + `
+      <div class="move-card">
+        <div><span class="move-chip">${Moves.CAT_LABELS[ex.cat]}</span>${m.flare ? '<span class="move-chip">🌧️ gentle</span>' : ''}${m.spent ? `<span class="move-chip">~${m.spent} min banked</span>` : ''}</div>
+        <h2>${esc(ex.name)}</h2>
+        <div class="move-dose">${esc(ex.dose)}</div>
+        <p class="move-cue">${esc(ex.cue)}</p>
+        ${ex.hm ? `<p class="move-hm">🧘 Hypermobile note: ${esc(ex.hm)}</p>` : ''}
+      </div>
+      <button class="bigbtn" data-action="move-did">✓ Did it</button>
+      <button class="bigbtn secondary" data-action="move-skip">↻ Different one</button>
+      <div class="move-links">
+        <button class="linkbtn" data-action="move-ban">Not for my body — never again</button>
+        <button class="linkbtn" data-action="move-reset">← change energy</button>
+      </div>`;
+  },
+
   pickOne() {
     const { now } = this.collectToday();
     if (!now.length) { toast('Nothing is waiting on you. Go make something. 🌿'); return; }
@@ -357,10 +455,12 @@ const App = {
   render() {
     const v = document.getElementById('view');
     if (this.ui.view === 'today') v.innerHTML = this.renderToday();
+    else if (this.ui.view === 'move') v.innerHTML = this.renderMove();
     else if (this.ui.view === 'lists') v.innerHTML = this.renderLists();
     else if (this.ui.view === 'list') v.innerHTML = this.renderListDetail();
     document.getElementById('navToday').classList.toggle('active', this.ui.view === 'today');
-    document.getElementById('navLists').classList.toggle('active', this.ui.view !== 'today');
+    document.getElementById('navMove').classList.toggle('active', this.ui.view === 'move');
+    document.getElementById('navLists').classList.toggle('active', this.ui.view === 'lists' || this.ui.view === 'list');
   },
 
   greeting() {
@@ -656,7 +756,16 @@ document.addEventListener('click', (evt) => {
   switch (a) {
     case 'go-home':
     case 'nav-today': App.navigate('today'); break;
+    case 'nav-move': App.navigate('move'); break;
     case 'nav-lists': App.navigate('lists'); break;
+    case 'move-budget': App.ui.move.budget = +el.dataset.min; App.ui.move.spent = 0; App.moveNext(); break;
+    case 'move-flare': App.ui.move.flare = !App.ui.move.flare; App.render(); break;
+    case 'move-skip': App.moveNext(); break;
+    case 'move-another': App.moveNext(); break;
+    case 'move-did': App.didMove(evt); break;
+    case 'move-ban': App.banMove(); break;
+    case 'move-done': App.endMoveSession(); break;
+    case 'move-reset': App.ui.move.budget = null; App.ui.move.currentId = null; App.ui.move.justDid = false; App.render(); break;
     case 'open-list': App.navigate('list', listId); break;
     case 'open-settings': openSettings(); break;
     case 'sync-now': Sync.now('manual'); break;

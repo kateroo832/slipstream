@@ -5,6 +5,11 @@ from `main`. Test locally with `powershell -File serve.ps1` (port 8642).
 
 - `app.js` — state, due-date logic, rendering (template strings + event
   delegation on `data-action` attributes), dialogs, boot.
+- `moves.js` — exercise-snack database for the Move tab (energy 2/5/10 min →
+  one random exercise, chainable). The user has fibromyalgia (flare-day toggle
+  filters to spice 0) and hypermobility (`hm` cues; control work, never
+  passive end-range stretching). Picks are weighted toward legs/core/power —
+  her goal is running up stairs. Per-exercise ban list lives in app state.
 - `sync.js` — GitHub Contents API sync. One JSON file per list at
   `data/<id>.json` in the user's private `slipstream-data` repo. Pull diffs by
   blob sha; item-level merge where newest `updatedAt` wins; push with sha,

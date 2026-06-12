@@ -470,6 +470,58 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.55); backdrop-filter: blur(2px); 
 .btn.primary { background: var(--accent); color: white; }
 .btn.ghost { background: var(--card-2); color: var(--muted); }
 
+/* ---------- Move tab ---------- */
+.bigbtn.energy {
+  text-align: left;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.bigbtn.energy span { font-size: 13px; font-weight: 400; opacity: 0.75; }
+.bigbtn.flare-btn.on { border-color: var(--accent); color: var(--accent); }
+
+.move-card {
+  background: linear-gradient(135deg, var(--card-2), var(--card));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 20px;
+  box-shadow: var(--shadow);
+}
+.move-card h2 { margin: 12px 0 4px; font-size: 26px; line-height: 1.15; }
+.move-chip {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 4px 10px;
+  margin-right: 6px;
+}
+.move-dose { color: var(--peach); font-size: 18px; font-weight: 700; }
+.move-cue { color: var(--muted); font-size: 15px; line-height: 1.5; margin: 10px 0 0; }
+.move-hm {
+  background: var(--accent-soft);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ink);
+  margin: 12px 0 0;
+}
+.move-links { display: flex; justify-content: space-between; gap: 10px; }
+.linkbtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px;
+}
+
 /* ---------- Confetti ---------- */
 #confettiCanvas {
   position: fixed;
