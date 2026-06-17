@@ -157,12 +157,16 @@ const App = {
   },
 
   /* Everything that wants attention today / in the next 3 days. */
-  collectToday() {
+  // 'campaign' lists belong to the Campaign tab; everything else is personal.
+  spaceOf(list) { return list.space === 'campaign' ? 'campaign' : 'personal'; },
+
+  collectToday(space = 'personal') {
     const t = todayStr();
     const soonEnd = addDays(t, 3);
     const now = [], soon = [];
     for (const list of Object.values(this.state.lists)) {
       if (list.archived || list.shelved) continue;
+      if (this.spaceOf(list) !== space) continue;
       if (list.type === 'recurring') {
         for (const item of list.items || []) {
           const due = this.recurDueDate(item);
@@ -281,11 +285,12 @@ const App = {
     this.markDirty(listId);
   },
 
-  createList(title, emoji, type, departure) {
+  createList(title, emoji, type, departure, space) {
     if (!title.trim()) return;
     const id = uid(title);
     const list = { id, title: title.trim(), emoji: emoji || '✅', type, items: [], updatedAt: nowISO() };
     if (type === 'trip') list.departure = departure || addDays(todayStr(), 14);
+    if (space === 'campaign') list.space = 'campaign';
     this.state.lists[id] = list;
     this.markDirty(id);
     this.navigate('list', id);
@@ -401,8 +406,8 @@ const App = {
       </div>`;
   },
 
-  pickOne() {
-    const { now } = this.collectToday();
+  pickOne(space = 'personal') {
+    const { now } = this.collectToday(space);
     if (!now.length) { toast('Nothing is waiting on you. Go make something. 🌿'); return; }
     const pick = now[(Math.random() * now.length) | 0];
     this.ui.spotlight = pick.list.id + '/' + pick.item.id;
@@ -456,11 +461,14 @@ const App = {
     const v = document.getElementById('view');
     if (this.ui.view === 'today') v.innerHTML = this.renderToday();
     else if (this.ui.view === 'move') v.innerHTML = this.renderMove();
+    else if (this.ui.view === 'campaign') v.innerHTML = this.renderCampaign();
     else if (this.ui.view === 'lists') v.innerHTML = this.renderLists();
     else if (this.ui.view === 'list') v.innerHTML = this.renderListDetail();
+    const inCampaign = this.ui.view === 'campaign' || (this.ui.view === 'list' && this.spaceOf(this.state.lists[this.ui.listId] || {}) === 'campaign');
     document.getElementById('navToday').classList.toggle('active', this.ui.view === 'today');
     document.getElementById('navMove').classList.toggle('active', this.ui.view === 'move');
-    document.getElementById('navLists').classList.toggle('active', this.ui.view === 'lists' || this.ui.view === 'list');
+    document.getElementById('navCampaign').classList.toggle('active', inCampaign);
+    document.getElementById('navLists').classList.toggle('active', (this.ui.view === 'lists' || this.ui.view === 'list') && !inCampaign);
   },
 
   greeting() {
@@ -519,10 +527,10 @@ const App = {
   },
 
   renderToday() {
-    const { now, soon } = this.collectToday();
+    const { now, soon } = this.collectToday('personal');
     const t = todayStr();
     const trips = Object.values(this.state.lists)
-      .filter(l => l.type === 'trip' && !l.archived && !l.shelved && (l.return || l.departure) >= t)
+      .filter(l => l.type === 'trip' && !l.archived && !l.shelved && this.spaceOf(l) === 'personal' && (l.return || l.departure) >= t)
       .sort((a, b) => a.departure < b.departure ? -1 : 1);
 
     const tripCards = trips.map(l => {
@@ -558,62 +566,96 @@ const App = {
       ${soonBlock}`;
   },
 
-  renderLists() {
-    const all = Object.values(this.state.lists).filter(l => !l.archived);
-    const lists = all.filter(l => !l.shelved);
-    const shelf = all.filter(l => l.shelved);
-    const order = { trip: 0, recurring: 1, project: 2, simple: 3 };
-    lists.sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.title.localeCompare(b.title));
-    shelf.sort((a, b) => a.title.localeCompare(b.title));
-    const cards = lists.map(l => {
-      let sub = '', badge = '';
-      if (l.type === 'trip') {
-        const days = daysUntil(l.departure);
-        const done = (l.items || []).filter(i => i.done).length;
-        const onTrip = days < 0 && l.return && l.return >= todayStr();
-        sub = days >= 0 ? `${days} days out · ${done}/${(l.items || []).length} prepped`
-          : onTrip ? `on the trip · home ${fmtShort(l.return)}`
-          : `departed ${fmtShort(l.departure)}`;
-        badge = days >= 0 ? `<span class="list-badge due">${days}d</span>` : onTrip ? `<span class="list-badge due">✈️</span>` : '';
-      } else if (l.type === 'recurring') {
-        const due = (l.items || []).filter(i => this.recurDueDate(i) <= todayStr()).length;
-        sub = `${(l.items || []).length} rhythms`;
-        badge = due ? `<span class="list-badge due">${due} ready</span>` : `<span class="list-badge">all quiet</span>`;
-      } else {
-        const total = (l.items || []).length;
-        const done = (l.items || []).filter(i => i.done).length;
-        sub = `${done}/${total} done`;
-        const pct = total ? Math.round(done / total * 100) : 0;
-        sub += pct === 100 ? ' 🎉' : '';
-        badge = `<span class="list-badge">${pct}%</span>`;
-      }
-      return `<div class="list-card" data-action="open-list" data-list="${l.id}">
-        <div class="list-emoji">${esc(l.emoji)}</div>
-        <div class="list-info"><div class="list-title">${esc(l.title)}</div><div class="list-sub">${sub}</div></div>
-        ${badge}
-      </div>`;
-    }).join('');
-    const shelfCards = shelf.map(l => {
+  listCardHTML(l) {
+    let sub = '', badge = '';
+    if (l.type === 'trip') {
+      const days = daysUntil(l.departure);
+      const done = (l.items || []).filter(i => i.done).length;
+      const onTrip = days < 0 && l.return && l.return >= todayStr();
+      sub = days >= 0 ? `${days} days out · ${done}/${(l.items || []).length} prepped`
+        : onTrip ? `on the trip · home ${fmtShort(l.return)}`
+        : `departed ${fmtShort(l.departure)}`;
+      badge = days >= 0 ? `<span class="list-badge due">${days}d</span>` : onTrip ? `<span class="list-badge due">✈️</span>` : '';
+    } else if (l.type === 'recurring') {
+      const due = (l.items || []).filter(i => this.recurDueDate(i) <= todayStr()).length;
+      sub = `${(l.items || []).length} rhythms`;
+      badge = due ? `<span class="list-badge due">${due} ready</span>` : `<span class="list-badge">all quiet</span>`;
+    } else {
       const total = (l.items || []).length;
       const done = (l.items || []).filter(i => i.done).length;
-      return `<div class="list-card shelved" data-action="open-list" data-list="${l.id}">
-        <div class="list-emoji">${esc(l.emoji)}</div>
-        <div class="list-info"><div class="list-title">${esc(l.title)}</div><div class="list-sub">${done}/${total} done · resting</div></div>
-        <button class="mini-btn accent" data-action="activate-list" data-list="${l.id}">Wake</button>
-      </div>`;
-    }).join('');
+      sub = `${done}/${total} done`;
+      const pct = total ? Math.round(done / total * 100) : 0;
+      sub += pct === 100 ? ' 🎉' : '';
+      badge = `<span class="list-badge">${pct}%</span>`;
+    }
+    return `<div class="list-card" data-action="open-list" data-list="${l.id}">
+      <div class="list-emoji">${esc(l.emoji)}</div>
+      <div class="list-info"><div class="list-title">${esc(l.title)}</div><div class="list-sub">${sub}</div></div>
+      ${badge}
+    </div>`;
+  },
+
+  shelfCardHTML(l) {
+    const total = (l.items || []).length;
+    const done = (l.items || []).filter(i => i.done).length;
+    return `<div class="list-card shelved" data-action="open-list" data-list="${l.id}">
+      <div class="list-emoji">${esc(l.emoji)}</div>
+      <div class="list-info"><div class="list-title">${esc(l.title)}</div><div class="list-sub">${done}/${total} done · resting</div></div>
+      <button class="mini-btn accent" data-action="activate-list" data-list="${l.id}">Wake</button>
+    </div>`;
+  },
+
+  // shared list-board renderer for a given space
+  listBoard(space) {
+    const order = { trip: 0, recurring: 1, project: 2, simple: 3 };
+    const all = Object.values(this.state.lists).filter(l => !l.archived && this.spaceOf(l) === space);
+    const lists = all.filter(l => !l.shelved)
+      .sort((a, b) => (order[a.type] ?? 9) - (order[b.type] ?? 9) || a.title.localeCompare(b.title));
+    const shelf = all.filter(l => l.shelved).sort((a, b) => a.title.localeCompare(b.title));
+    return {
+      cards: lists.map(l => this.listCardHTML(l)).join(''),
+      shelfCards: shelf.map(l => this.shelfCardHTML(l)).join(''),
+      count: lists.length, shelfCount: shelf.length,
+    };
+  },
+
+  renderLists() {
+    const b = this.listBoard('personal');
     return `
       <div class="list-head"><h1>Your lists</h1></div>
-      ${cards || '<div class="empty"><span class="big">🗂️</span>No lists yet.</div>'}
+      ${b.cards || '<div class="empty"><span class="big">🗂️</span>No lists yet.</div>'}
       <button class="bigbtn secondary" data-action="new-list">＋ New list</button>
-      ${shelf.length ? `<div class="section-label">On the shelf — resting, not forgotten</div>${shelfCards}` : ''}`;
+      ${b.shelfCount ? `<div class="section-label">On the shelf — resting, not forgotten</div>${b.shelfCards}` : ''}`;
+  },
+
+  renderCampaign() {
+    const { now, soon } = this.collectToday('campaign');
+    const b = this.listBoard('campaign');
+    const nowRows = now.length
+      ? `<div class="task-group">${now.map(e => this.renderEntryRow(e)).join('')}</div>`
+      : `<div class="empty"><span class="big">🗳️</span>Nothing due on the campaign right now.</div>`;
+    const soonBlock = soon.length
+      ? `<div class="section-label">Coming up</div><div class="task-group">${soon.map(e => this.renderEntryRow(e)).join('')}</div>` : '';
+    const board = b.count
+      ? `<div class="section-label">Campaign lists</div>${b.cards}`
+      : `<div class="empty">No campaign lists yet. Add one below, or paste tasks from a campaign session into a Code-mode Claude.</div>`;
+    return `
+      <div class="greet"><h1>Campaign</h1><p>Ops command center · work stays out of your personal Today.</p></div>
+      <div class="section-label">On me now</div>
+      ${nowRows}
+      ${now.length ? `<button class="bigbtn" data-action="pick-one-campaign">✨ Pick one for me</button>` : ''}
+      ${soonBlock}
+      ${board}
+      <button class="bigbtn secondary" data-action="new-campaign-list">＋ New campaign list</button>
+      ${b.shelfCount ? `<div class="section-label">On the shelf</div>${b.shelfCards}` : ''}`;
   },
 
   renderListDetail() {
     const list = this.state.lists[this.ui.listId];
     if (!list) return '<div class="empty">List not found.</div>';
+    const campaign = this.spaceOf(list) === 'campaign';
     const head = `
-      <button class="back-btn" data-action="nav-lists">‹ Lists</button>
+      <button class="back-btn" data-action="${campaign ? 'nav-campaign' : 'nav-lists'}">‹ ${campaign ? 'Campaign' : 'Lists'}</button>
       <div class="list-head"><h1><span>${esc(list.emoji)}</span>${esc(list.title)}
         <button class="mini-btn ${list.shelved ? 'accent' : ''}" data-action="${list.shelved ? 'activate-list' : 'shelve-list'}" data-list="${list.id}" style="margin-left:auto">${list.shelved ? 'Wake' : 'Shelve'}</button>
         <button class="mini-btn" data-action="archive-list" data-list="${list.id}" title="Archive list">Archive</button>
@@ -757,6 +799,7 @@ document.addEventListener('click', (evt) => {
     case 'go-home':
     case 'nav-today': App.navigate('today'); break;
     case 'nav-move': App.navigate('move'); break;
+    case 'nav-campaign': App.navigate('campaign'); break;
     case 'nav-lists': App.navigate('lists'); break;
     case 'move-budget': App.ui.move.budget = +el.dataset.min; App.ui.move.spent = 0; App.moveNext(); break;
     case 'move-flare': App.ui.move.flare = !App.ui.move.flare; App.render(); break;
@@ -783,7 +826,9 @@ document.addEventListener('click', (evt) => {
       if (input && input.value.trim()) { App.addItem(listId, input.value); }
       break;
     }
-    case 'new-list': openNewList(); break;
+    case 'new-list': openNewList('personal'); break;
+    case 'new-campaign-list': openNewList('campaign'); break;
+    case 'pick-one-campaign': App.pickOne('campaign'); break;
     case 'shelve-list': App.shelveList(listId, true); break;
     case 'activate-list': App.shelveList(listId, false); break;
     case 'archive-list': App.archiveList(listId); break;
@@ -828,11 +873,11 @@ function openSettings() {
   });
 }
 
-function openNewList() {
+function openNewList(space = 'personal') {
   const dlg = document.getElementById('newListDialog');
   document.getElementById('nlTitle').value = '';
-  document.getElementById('nlEmoji').value = '✅';
-  document.getElementById('nlType').value = 'simple';
+  document.getElementById('nlEmoji').value = space === 'campaign' ? '🗳️' : '✅';
+  document.getElementById('nlType').value = space === 'campaign' ? 'project' : 'simple';
   document.getElementById('nlDepartureWrap').hidden = true;
   dlg.showModal();
   dlg.addEventListener('close', function handler() {
@@ -843,6 +888,7 @@ function openNewList() {
       document.getElementById('nlEmoji').value.trim(),
       document.getElementById('nlType').value,
       document.getElementById('nlDeparture').value || null,
+      space,
     );
   });
 }
