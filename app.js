@@ -259,13 +259,16 @@ const App = {
     toast(`💤 Snoozed until ${fmtShort(item.snoozedUntil)}. Guilt not included.`);
   },
 
-  addItem(listId, text) {
+  addItem(listId, text, opts = {}) {
     const list = this.state.lists[listId];
     if (!list || !text.trim()) return;
     const item = { id: uid(text), text: text.trim(), updatedAt: nowISO() };
     if (list.type === 'recurring') { item.every = 7; item.lastDone = null; item.snoozedUntil = null; item.history = []; }
     else if (list.type === 'trip') { item.daysBefore = 7; item.done = false; }
     else { item.done = false; }
+    const notes = (opts.notes || '').trim();
+    if (notes) item.notes = notes;
+    if (opts.due) item.due = opts.due; // YYYY-MM-DD from the date picker
     list.items = list.items || [];
     list.items.push(item);
     this.markDirty(listId);
@@ -507,9 +510,10 @@ const App = {
     if (!nav) return;
     let tabs;
     if (MODE === 'campaign') {
+      const pin = { 'alani-todo': 0, 'jeri-todo': 1 }; // keep the two people tabs together, up front
       const lists = Object.values(this.state.lists)
         .filter(l => !l.archived && !l.shelved && this.spaceOf(l) === 'campaign')
-        .sort((a, b) => a.title.localeCompare(b.title));
+        .sort((a, b) => ((pin[a.id] ?? 9) - (pin[b.id] ?? 9)) || a.title.localeCompare(b.title));
       tabs = [{ key: 'today', emoji: '🗳️', label: 'Today', action: 'nav-today' }]
         .concat(lists.map(l => ({ key: 'list:' + l.id, emoji: l.emoji, label: this.tabLabel(l), action: 'open-list', list: l.id })));
       nav.classList.add('scroll');
@@ -717,8 +721,18 @@ const App = {
     if (list.type === 'trip') body = this.renderTripBody(list);
     else if (list.type === 'recurring') body = this.renderRecurringBody(list);
     else body = this.renderProjectBody(list);
-    const addRow = `<div class="add-row">
-      <input type="text" id="addInput" placeholder="${list.type === 'trip' ? 'Add a prep task…' : list.type === 'recurring' ? 'Add a rhythm…' : 'Add a task…'}" enterkeyhint="done">
+    const rich = list.type !== 'recurring' && list.type !== 'trip';
+    const addRow = rich
+      ? `<div class="add-rich">
+      <input type="text" id="addInput" placeholder="Add a task…" enterkeyhint="next">
+      <div class="add-extra">
+        <input type="date" id="addDue" title="Due date (optional)" aria-label="Due date (optional)">
+        <input type="text" id="addNotes" placeholder="Details (optional)…" enterkeyhint="done">
+        <button data-action="add-item" data-list="${list.id}">＋ Add</button>
+      </div>
+    </div>`
+      : `<div class="add-row">
+      <input type="text" id="addInput" placeholder="${list.type === 'trip' ? 'Add a prep task…' : 'Add a rhythm…'}" enterkeyhint="done">
       <button data-action="add-item" data-list="${list.id}">＋</button>
     </div>`;
     return head + body + addRow;
@@ -876,7 +890,11 @@ document.addEventListener('click', (evt) => {
     case 'delete-item': App.deleteItem(listId, itemId); break;
     case 'add-item': {
       const input = document.getElementById('addInput');
-      if (input && input.value.trim()) { App.addItem(listId, input.value); }
+      const dueEl = document.getElementById('addDue');
+      const notesEl = document.getElementById('addNotes');
+      if (input && input.value.trim()) {
+        App.addItem(listId, input.value, { due: dueEl && dueEl.value, notes: notesEl && notesEl.value });
+      }
       break;
     }
     case 'new-list': openNewList('personal'); break;
@@ -890,10 +908,13 @@ document.addEventListener('click', (evt) => {
 });
 
 document.addEventListener('keydown', (evt) => {
-  if (evt.key === 'Enter' && evt.target.id === 'addInput') {
+  if (evt.key === 'Enter' && (evt.target.id === 'addInput' || evt.target.id === 'addNotes')) {
     evt.preventDefault();
     const listId = App.ui.listId;
-    if (evt.target.value.trim()) App.addItem(listId, evt.target.value);
+    const input = document.getElementById('addInput');
+    const dueEl = document.getElementById('addDue');
+    const notesEl = document.getElementById('addNotes');
+    if (input && input.value.trim()) App.addItem(listId, input.value, { due: dueEl && dueEl.value, notes: notesEl && notesEl.value });
     // re-focus the fresh input after render so you can rapid-fire entries
     requestAnimationFrame(() => { const i = document.getElementById('addInput'); if (i) i.focus(); });
   }
