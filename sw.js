@@ -1,7 +1,7 @@
 ﻿/* Slipstream service worker â€” offline app shell.
  * Network-first for same-origin assets (so updates land immediately),
  * cache fallback when offline. GitHub API requests pass straight through. */
-const CACHE = 'slipstream-v9';
+const CACHE = 'slipstream-v10';
 const SHELL = [
   './',
   'index.html',
@@ -32,7 +32,7 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
   e.respondWith(
-    fetch(e.request)
+    fetch(e.request, { cache: 'no-cache' }) // always revalidate code with the server so updates land in one reopen
       .then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(e.request, copy));
