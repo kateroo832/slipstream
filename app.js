@@ -31,6 +31,11 @@ function uid(text) {
  * Both apps share localStorage (same origin) + the same data repo, so the
  * campaign app needs no separate setup — it just shows the campaign slice. */
 const MODE = (typeof window !== 'undefined' && window.SLIPSTREAM_MODE === 'campaign') ? 'campaign' : 'personal';
+/* Each app namespaces its own storage so they sync to DIFFERENT repos/tokens:
+ * personal → slipstream-data (Kaight only); campaign → slipstream-campaign-data
+ * (team: Kaight + Alani + Jeri). Same origin but separate keys = no cross-leak. */
+const LS_KEY = MODE === 'campaign' ? 'slipstream-campaign' : 'slipstream';
+const DEFAULT_REPO = MODE === 'campaign' ? 'slipstream-campaign-data' : 'slipstream-data';
 
 /* ---------------- app state ---------------- */
 const App = {
@@ -51,20 +56,24 @@ const App = {
 
   load() {
     try {
-      const raw = JSON.parse(localStorage.getItem('slipstream') || 'null');
+      const raw = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
       if (raw) {
         Object.assign(this.state, raw);
         this.state.dirty = new Set(raw.dirty || []);
-      } else {
-        this.seed();
+      } else if (MODE !== 'campaign') {
+        this.seed(); // only the personal app seeds example lists
       }
-    } catch (e) { console.warn('load failed', e); this.seed(); }
+    } catch (e) { console.warn('load failed', e); if (MODE !== 'campaign') this.seed(); }
   },
 
   persist() {
     const s = { ...this.state, dirty: [...this.state.dirty] };
-    localStorage.setItem('slipstream', JSON.stringify(s));
+    localStorage.setItem(LS_KEY, JSON.stringify(s));
   },
+
+  // who this device's user is, derived from the Settings "name" — drives owner badges
+  whoami() { return (this.state.settings.name || '').trim().toLowerCase(); },
+  ownerName(o) { return o ? o.charAt(0).toUpperCase() + o.slice(1) : ''; },
 
   markDirty(listId) {
     const list = this.state.lists[listId];
@@ -703,7 +712,7 @@ const App = {
       <div class="list-head"><h1><span>${esc(list.emoji)}</span>${esc(list.title)}
         <button class="mini-btn ${list.shelved ? 'accent' : ''}" data-action="${list.shelved ? 'activate-list' : 'shelve-list'}" data-list="${list.id}" style="margin-left:auto">${list.shelved ? 'Wake' : 'Shelve'}</button>
         <button class="mini-btn" data-action="archive-list" data-list="${list.id}" title="Archive list">Archive</button>
-      </h1></div>`;
+      </h1>${list.owner ? `<div class="owner-tag ${this.whoami() === list.owner ? 'me' : ''}">👤 ${esc(this.ownerName(list.owner))}${this.whoami() === list.owner ? ' · you' : ''}</div>` : ''}</div>`;
     let body = '';
     if (list.type === 'trip') body = this.renderTripBody(list);
     else if (list.type === 'recurring') body = this.renderRecurringBody(list);
@@ -895,7 +904,7 @@ function openSettings() {
   const s = App.state.settings;
   document.getElementById('setName').value = s.name || '';
   document.getElementById('setOwner').value = s.owner || '';
-  document.getElementById('setRepo').value = s.repo || 'slipstream-data';
+  document.getElementById('setRepo').value = s.repo || DEFAULT_REPO;
   document.getElementById('setBranch').value = s.branch || 'main';
   document.getElementById('setToken').value = s.token || '';
   const dlg = document.getElementById('settingsDialog');

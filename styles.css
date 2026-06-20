@@ -420,6 +420,20 @@ body.campaign-mode {
   --peach: #4ea0d6;
 }
 
+/* Owner badge on per-person campaign lists (Alani / Jeri / Kaight) */
+.owner-tag {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.owner-tag.me { color: var(--accent); border-color: var(--accent); }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;
