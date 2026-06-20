@@ -25,6 +25,13 @@ function uid(text) {
   return slug + '-' + Math.random().toString(36).slice(2, 6);
 }
 
+/* Two modes, set by window.SLIPSTREAM_MODE before this script loads:
+ *   'personal' (default) → Today / Move / Lists, personal lists only.
+ *   'campaign'           → Today + one bottom tab per campaign list, campaign only.
+ * Both apps share localStorage (same origin) + the same data repo, so the
+ * campaign app needs no separate setup — it just shows the campaign slice. */
+const MODE = (typeof window !== 'undefined' && window.SLIPSTREAM_MODE === 'campaign') ? 'campaign' : 'personal';
+
 /* ---------------- app state ---------------- */
 const App = {
   state: {
@@ -459,16 +466,55 @@ const App = {
 
   render() {
     const v = document.getElementById('view');
-    if (this.ui.view === 'today') v.innerHTML = this.renderToday();
-    else if (this.ui.view === 'move') v.innerHTML = this.renderMove();
-    else if (this.ui.view === 'campaign') v.innerHTML = this.renderCampaign();
-    else if (this.ui.view === 'lists') v.innerHTML = this.renderLists();
-    else if (this.ui.view === 'list') v.innerHTML = this.renderListDetail();
-    const inCampaign = this.ui.view === 'campaign' || (this.ui.view === 'list' && this.spaceOf(this.state.lists[this.ui.listId] || {}) === 'campaign');
-    document.getElementById('navToday').classList.toggle('active', this.ui.view === 'today');
-    document.getElementById('navMove').classList.toggle('active', this.ui.view === 'move');
-    document.getElementById('navCampaign').classList.toggle('active', inCampaign);
-    document.getElementById('navLists').classList.toggle('active', (this.ui.view === 'lists' || this.ui.view === 'list') && !inCampaign);
+    if (MODE === 'campaign') {
+      v.innerHTML = this.ui.view === 'list' ? this.renderListDetail() : this.renderCampaign();
+    } else if (this.ui.view === 'move') {
+      v.innerHTML = this.renderMove();
+    } else if (this.ui.view === 'lists') {
+      v.innerHTML = this.renderLists();
+    } else if (this.ui.view === 'list') {
+      v.innerHTML = this.renderListDetail();
+    } else {
+      v.innerHTML = this.renderToday();
+    }
+    this.renderNav();
+  },
+
+  navActiveKey() {
+    if (this.ui.view === 'list') return 'list:' + this.ui.listId;
+    return this.ui.view;
+  },
+
+  tabLabel(list) {
+    if (list.tab) return list.tab;
+    const short = { 'campaign-ops': 'Ops', 'field-gotv': 'Field', 'voter-data-tools': 'Data',
+      'endorsements-profiles': 'Endorse', 'events-travel': 'Events', 'website': 'Web', 'training': 'Training' };
+    return short[list.id] || list.title.split(/[\s&—-]+/)[0];
+  },
+
+  // Bottom nav is rendered from JS so the campaign app can show one tab per list.
+  renderNav() {
+    const nav = document.getElementById('bottomnav');
+    if (!nav) return;
+    let tabs;
+    if (MODE === 'campaign') {
+      const lists = Object.values(this.state.lists)
+        .filter(l => !l.archived && !l.shelved && this.spaceOf(l) === 'campaign')
+        .sort((a, b) => a.title.localeCompare(b.title));
+      tabs = [{ key: 'today', emoji: '🗳️', label: 'Today', action: 'nav-today' }]
+        .concat(lists.map(l => ({ key: 'list:' + l.id, emoji: l.emoji, label: this.tabLabel(l), action: 'open-list', list: l.id })));
+      nav.classList.add('scroll');
+    } else {
+      tabs = [
+        { key: 'today', emoji: '🌤️', label: 'Today', action: 'nav-today' },
+        { key: 'move', emoji: '💪', label: 'Move', action: 'nav-move' },
+        { key: 'lists', emoji: '🗂️', label: 'Lists', action: 'nav-lists' },
+      ];
+    }
+    const active = this.navActiveKey();
+    nav.innerHTML = tabs.map(t =>
+      `<button class="nav-btn ${t.key === active ? 'active' : ''}" data-action="${t.action}"${t.list ? ` data-list="${t.list}"` : ''}>` +
+      `<span class="nav-emoji">${t.emoji}</span>${esc(t.label)}</button>`).join('');
   },
 
   greeting() {
@@ -636,17 +682,13 @@ const App = {
       : `<div class="empty"><span class="big">🗳️</span>Nothing due on the campaign right now.</div>`;
     const soonBlock = soon.length
       ? `<div class="section-label">Coming up</div><div class="task-group">${soon.map(e => this.renderEntryRow(e)).join('')}</div>` : '';
-    const board = b.count
-      ? `<div class="section-label">Campaign lists</div>${b.cards}`
-      : `<div class="empty">No campaign lists yet. Add one below, or paste tasks from a campaign session into a Code-mode Claude.</div>`;
     return `
-      <div class="greet"><h1>Campaign</h1><p>Ops command center · work stays out of your personal Today.</p></div>
+      <div class="greet"><h1>Campaign HQ</h1><p>${fmtShort(todayStr())} · your workstreams are the tabs below.</p></div>
       <div class="section-label">On me now</div>
       ${nowRows}
       ${now.length ? `<button class="bigbtn" data-action="pick-one-campaign">✨ Pick one for me</button>` : ''}
       ${soonBlock}
-      ${board}
-      <button class="bigbtn secondary" data-action="new-campaign-list">＋ New campaign list</button>
+      <button class="bigbtn secondary" data-action="new-campaign-list">＋ New workstream list</button>
       ${b.shelfCount ? `<div class="section-label">On the shelf</div>${b.shelfCards}` : ''}`;
   },
 
@@ -654,8 +696,10 @@ const App = {
     const list = this.state.lists[this.ui.listId];
     if (!list) return '<div class="empty">List not found.</div>';
     const campaign = this.spaceOf(list) === 'campaign';
+    const backAction = MODE === 'campaign' ? 'nav-today' : (campaign ? 'nav-campaign' : 'nav-lists');
+    const backLabel = MODE === 'campaign' ? 'HQ' : (campaign ? 'Campaign' : 'Lists');
     const head = `
-      <button class="back-btn" data-action="${campaign ? 'nav-campaign' : 'nav-lists'}">‹ ${campaign ? 'Campaign' : 'Lists'}</button>
+      <button class="back-btn" data-action="${backAction}">‹ ${backLabel}</button>
       <div class="list-head"><h1><span>${esc(list.emoji)}</span>${esc(list.title)}
         <button class="mini-btn ${list.shelved ? 'accent' : ''}" data-action="${list.shelved ? 'activate-list' : 'shelve-list'}" data-list="${list.id}" style="margin-left:auto">${list.shelved ? 'Wake' : 'Shelve'}</button>
         <button class="mini-btn" data-action="archive-list" data-list="${list.id}" title="Archive list">Archive</button>

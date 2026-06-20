@@ -20,6 +20,8 @@ while ($listener.IsListening) {
   $path = $ctx.Request.Url.AbsolutePath.TrimStart('/')
   if ([string]::IsNullOrEmpty($path)) { $path = 'index.html' }
   $file = Join-Path $root $path
+  # Map a directory request (e.g. /campaign/) to its index.html, like GitHub Pages
+  if (Test-Path $file -PathType Container) { $file = Join-Path $file 'index.html' }
   try {
     if (Test-Path $file -PathType Leaf) {
       $bytes = [System.IO.File]::ReadAllBytes($file)

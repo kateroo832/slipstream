@@ -407,6 +407,19 @@ button { font: inherit; color: inherit; }
 .nav-btn.active { color: var(--accent); }
 .nav-emoji { font-size: 20px; }
 
+/* Campaign app: many list-tabs → horizontally scrollable bottom bar */
+.bottomnav.scroll { justify-content: flex-start; overflow-x: auto; overflow-y: hidden; gap: 2px; padding-left: 8px; padding-right: 8px; }
+.bottomnav.scroll::-webkit-scrollbar { display: none; }
+.bottomnav.scroll { scrollbar-width: none; }
+.bottomnav.scroll .nav-btn { flex: 0 0 auto; min-width: 58px; padding: 6px 8px; white-space: nowrap; }
+
+/* Campaign app gets a distinct accent (blue) so the two installs look different */
+body.campaign-mode {
+  --accent: #2e6bbf;
+  --accent-soft: rgba(46, 107, 191, 0.18);
+  --peach: #4ea0d6;
+}
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;

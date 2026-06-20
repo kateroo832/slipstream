@@ -4,19 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#13111A">
-<title>Slipstream</title>
+<title>Campaign HQ</title>
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="../styles.css">
+<script>window.SLIPSTREAM_MODE = 'campaign';</script>
 </head>
-<body>
+<body class="campaign-mode">
   <header class="topbar">
     <div class="brand" data-action="go-home">
       <svg class="brand-mark" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
-        <path d="M4 13 L9 18 L20 6" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 2 L14.6 8.6 L21.6 9 L16.2 13.5 L18 20.3 L12 16.5 L6 20.3 L7.8 13.5 L2.4 9 L9.4 8.6 Z" fill="currentColor" stroke="none"/>
       </svg>
-      <span>Slipstream</span>
+      <span>Campaign HQ</span>
     </div>
     <div class="topbar-right">
       <button class="sync-pill" id="syncPill" data-action="sync-now" title="Sync now">
@@ -28,7 +29,7 @@
 
   <main id="view" class="view"></main>
 
-  <nav class="bottomnav" id="bottomnav"></nav>
+  <nav class="bottomnav scroll" id="bottomnav"></nav>
 
   <div id="toast" class="toast" hidden>
     <span id="toastMsg"></span>
@@ -40,8 +41,8 @@
       <h2>Settings</h2>
       <label>Your name <input type="text" id="setName" placeholder="What should I call you?"></label>
       <h3>GitHub sync</h3>
-      <p class="hint">Point Slipstream at your private data repo. See SETUP.md for the walkthrough.</p>
-      <label>GitHub username <input type="text" id="setOwner" autocapitalize="off" autocomplete="off" placeholder="e.g. kaight-makes"></label>
+      <p class="hint">Shares the same data + login as your personal Slipstream app — fill these in if this is the only one set up.</p>
+      <label>GitHub username <input type="text" id="setOwner" autocapitalize="off" autocomplete="off" placeholder="e.g. kateroo832"></label>
       <label>Data repo name <input type="text" id="setRepo" autocapitalize="off" autocomplete="off" placeholder="slipstream-data"></label>
       <label>Branch <input type="text" id="setBranch" autocapitalize="off" autocomplete="off" placeholder="main"></label>
       <label>Access token <input type="password" id="setToken" autocomplete="off" placeholder="github_pat_…"></label>
@@ -55,13 +56,13 @@
 
   <dialog id="newListDialog">
     <form method="dialog" class="dlg">
-      <h2>New list</h2>
-      <label>Name <input type="text" id="nlTitle" placeholder="e.g. Garage cleanout"></label>
-      <label>Emoji <input type="text" id="nlEmoji" value="✅" maxlength="4"></label>
+      <h2>New workstream list</h2>
+      <label>Name <input type="text" id="nlTitle" placeholder="e.g. Press &amp; Comms"></label>
+      <label>Emoji <input type="text" id="nlEmoji" value="🗳️" maxlength="4"></label>
       <label>Type
         <select id="nlType">
-          <option value="simple">Simple checklist</option>
           <option value="project">Project (sections &amp; phases)</option>
+          <option value="simple">Simple checklist</option>
           <option value="recurring">Recurring (chores that reschedule)</option>
           <option value="trip">Trip countdown</option>
         </select>
@@ -76,9 +77,9 @@
 
   <canvas id="confettiCanvas"></canvas>
 
-  <script src="confetti.js"></script>
-  <script src="moves.js"></script>
-  <script src="sync.js"></script>
-  <script src="app.js"></script>
+  <script src="../confetti.js"></script>
+  <script src="../moves.js"></script>
+  <script src="../sync.js"></script>
+  <script src="../app.js"></script>
 </body>
 </html>
