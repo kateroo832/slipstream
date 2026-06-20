@@ -20,6 +20,15 @@ function nowISO() { return new Date().toISOString(); }
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+// Escape, then make http(s) URLs clickable. Trailing sentence punctuation is kept outside the link.
+function linkify(s) {
+  return esc(s).replace(/https?:\/\/[^\s<]+/g, (m) => {
+    const trail = m.match(/[.,;:!?)\]}]+$/);
+    const url = trail ? m.slice(0, -trail[0].length) : m;
+    const tail = trail ? trail[0] : '';
+    return `<a class="task-link" href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>${tail}`;
+  });
+}
 function uid(text) {
   const slug = String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 28) || 'item';
   return slug + '-' + Math.random().toString(36).slice(2, 6);
@@ -580,7 +589,7 @@ const App = {
     const checkAction = kind === 'recurring' ? 'check-recurring' : 'toggle-done';
     return `<div class="task-row ${spot}" data-key="${key}">
       <button class="checkbtn" data-action="${checkAction}" data-list="${list.id}" data-item="${item.id}">✓</button>
-      <div class="task-main"><div class="task-text">${esc(item.text)}</div><div class="task-sub">${sub}</div></div>
+      <div class="task-main"><div class="task-text">${linkify(item.text)}</div><div class="task-sub">${sub}</div></div>
       ${actions}
     </div>`;
   },
@@ -767,7 +776,7 @@ const App = {
         : `${item.daysBefore}d before · ${fmtShort(due)}`;
       return `<div class="task-row ${item.done ? 'done-row' : ''}" data-key="${list.id}/${item.id}">
         <button class="checkbtn ${item.done ? 'checked' : ''}" data-action="toggle-done" data-list="${list.id}" data-item="${item.id}">✓</button>
-        <div class="task-main"><div class="task-text">${esc(item.text)}</div><div class="task-sub">${when}</div>${item.notes ? `<div class="task-sub">${esc(item.notes)}</div>` : ''}</div>
+        <div class="task-main"><div class="task-text">${linkify(item.text)}</div><div class="task-sub">${when}</div>${item.notes ? `<div class="task-sub">${linkify(item.notes)}</div>` : ''}</div>
         ${this.itemMenuOrActions(list, item)}
       </div>`;
     }).join('');
@@ -797,8 +806,8 @@ const App = {
            </div>`;
       return `<div class="task-row" data-key="${key}">
         <button class="checkbtn" data-action="check-recurring" data-list="${list.id}" data-item="${item.id}">✓</button>
-        <div class="task-main"><div class="task-text">${esc(item.text)}</div>
-          <div class="task-sub">${this.cadenceLabel(item)} · ${last} · ${this.dueLabel(due)}</div>${item.notes ? `<div class="task-sub">${esc(item.notes)}</div>` : ''}</div>
+        <div class="task-main"><div class="task-text">${linkify(item.text)}</div>
+          <div class="task-sub">${this.cadenceLabel(item)} · ${last} · ${this.dueLabel(due)}</div>${item.notes ? `<div class="task-sub">${linkify(item.notes)}</div>` : ''}</div>
         ${actions}
       </div>`;
     };
@@ -828,7 +837,7 @@ const App = {
       const rows = sec.items.map(item => `
         <div class="task-row ${item.done ? 'done-row' : ''} ${firstUndone && item.id === firstUndone.id ? 'spotlight' : ''}" data-key="${list.id}/${item.id}">
           <button class="checkbtn ${item.done ? 'checked' : ''}" data-action="toggle-done" data-list="${list.id}" data-item="${item.id}">✓</button>
-          <div class="task-main"><div class="task-text">${esc(item.text)}</div>${item.due && !item.done ? `<div class="task-sub">${this.dueLabel(item.due)}</div>` : ''}${item.notes ? `<div class="task-sub">${esc(item.notes)}</div>` : ''}</div>
+          <div class="task-main"><div class="task-text">${linkify(item.text)}</div>${item.due && !item.done ? `<div class="task-sub">${this.dueLabel(item.due)}</div>` : ''}${item.notes ? `<div class="task-sub">${linkify(item.notes)}</div>` : ''}</div>
           ${this.itemMenuOrActions(list, item)}
         </div>`).join('');
       return `<div class="group-head"><span>${esc(sec.name)}</span><span class="count">${secDone}/${sec.items.length}</span></div>

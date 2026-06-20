@@ -342,6 +342,7 @@ button { font: inherit; color: inherit; }
 .countdown-hero b { font-size: 44px; color: var(--peach); display: block; line-height: 1.1; }
 .countdown-hero span { color: var(--muted); font-size: 14px; }
 
+.task-link { color: var(--accent); text-decoration: underline; word-break: break-all; }
 .add-row { display: flex; gap: 8px; }
 .add-row input {
   flex: 1;
