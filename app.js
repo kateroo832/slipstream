@@ -84,6 +84,14 @@ const App = {
   whoami() { return (this.state.settings.name || '').trim().toLowerCase(); },
   ownerName(o) { return o ? o.charAt(0).toUpperCase() + o.slice(1) : ''; },
 
+  // Campaign mode only: an item checked off for over an hour drops off the list.
+  // Grace window lets people undo a mis-tap and savor the check before it clears,
+  // keeping the shared lists from piling up with done items. (Data is kept, just hidden.)
+  hideStaleDone(item) {
+    if (MODE !== 'campaign' || !item.done || !item.doneAt) return false;
+    return Date.now() - new Date(item.doneAt).getTime() > 3600000; // 1 hour
+  },
+
   markDirty(listId) {
     const list = this.state.lists[listId];
     if (list) list.updatedAt = nowISO();
@@ -818,7 +826,7 @@ const App = {
   },
 
   renderProjectBody(list) {
-    const items = list.items || [];
+    const items = (list.items || []).filter(it => !this.hideStaleDone(it));
     const sections = [];
     for (const item of items) {
       const name = item.section || 'Tasks';
