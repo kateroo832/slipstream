@@ -45,6 +45,7 @@ const MODE = (typeof window !== 'undefined' && window.SLIPSTREAM_MODE === 'campa
  * (team: Kaight + Alani + Jeri). Same origin but separate keys = no cross-leak. */
 const LS_KEY = MODE === 'campaign' ? 'slipstream-campaign' : 'slipstream';
 const DEFAULT_REPO = MODE === 'campaign' ? 'slipstream-campaign-data' : 'slipstream-data';
+const DEFAULT_OWNER = 'kateroo832'; // both repos live under this GitHub account — pre-fill so teammates only enter Name + Token
 
 /* ---------------- app state ---------------- */
 const App = {
@@ -941,7 +942,7 @@ document.addEventListener('keydown', (evt) => {
 function openSettings() {
   const s = App.state.settings;
   document.getElementById('setName').value = s.name || '';
-  document.getElementById('setOwner').value = s.owner || '';
+  document.getElementById('setOwner').value = s.owner || DEFAULT_OWNER;
   document.getElementById('setRepo').value = s.repo || DEFAULT_REPO;
   document.getElementById('setBranch').value = s.branch || 'main';
   document.getElementById('setToken').value = s.token || '';

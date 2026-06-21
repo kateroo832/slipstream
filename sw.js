@@ -1,7 +1,7 @@
 ﻿/* Slipstream service worker â€” offline app shell.
  * Network-first for same-origin assets (so updates land immediately),
  * cache fallback when offline. GitHub API requests pass straight through. */
-const CACHE = 'slipstream-v11';
+const CACHE = 'slipstream-v12';
 const SHELL = [
   './',
   'index.html',
